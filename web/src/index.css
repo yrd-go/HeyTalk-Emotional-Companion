@@ -1,0 +1,233 @@
+@import "tailwindcss";
+
+/*
+ * 全局样式
+ * ---------------------------------------------------------------------------
+ * 用 Tailwind 之后，这个文件**只留最必要的全局重置与主题变量**。
+ * 上一版（原生 HTML）我在这样一个文件里手写了 300 多行 CSS：气泡、侧边栏、
+ * 输入框、折叠图标、历史列表……每一处都要手动调、还互相污染，
+ * 是反复出错的根源。现在这些都改成组件里的 Tailwind class。
+ *
+ * 设计依据（前几轮定下来、有出处的）：
+ *   · 纯白背景（主人明确要求），层次靠侧边栏与气泡的极浅灰拉开
+ *   · 中文行高 1.75（1.5 以下明显发挤）
+ *   · 不给白心图标加任何"底板"（主人要求去掉那个方框）
+ */
+
+@theme {
+  --color-brand: #0b1f3a;        /* 海军蓝：按钮、气泡与强调色 */
+  --color-brand-dark: #071528;
+  --color-ink: #181c22;          /* 近黑：品牌文字与主标题 */
+  --color-body: #26282b;         /* 正文 */
+  --color-muted: #8a8f96;
+  --color-line: #e6e8ea;
+  --color-panel: #f5f6f7;
+  --color-panel-2: #eceef0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #fff;
+  color: var(--color-body);
+  font-family: "Segoe UI", system-ui, -apple-system, "PingFang SC",
+    "Microsoft YaHei", "Hiragino Sans GB", Arial, sans-serif;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 中文行高：1.5 以下会明显发挤 */
+p,
+li {
+  line-height: 1.75;
+}
+
+/* 细滚动条：默认那条粗灰条在浅色界面里很抢眼 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d3d7db transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #d3d7db;
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 消息滚动区：滚动条会占用右侧宽度，使居中的 720px 消息列整体左移半个
+   滚动条；输入框在滚动区外，于是两者左边线会差 5~6px。两侧都预留同样的
+   gutter，中心线保持不变，消息列与输入框才能对齐。 */
+.chat-scroll {
+  scrollbar-gutter: stable both-edges;
+}
+
+/* ===========================================================================
+ * 首屏欢迎语
+ *
+ * 参考图的语气是克制的现代中文界面：无衬线、600 字重、桌面最大 32px。
+ * 不靠超大衬线字制造存在感；clamp 让手机端也保持同一套比例。
+ * ======================================================================== */
+/* 一次性品牌开场：三道极细光轨，约 0.8 秒收束。 */
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  background: #fff;
+  pointer-events: none;
+  transition: opacity 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.intro-overlay--exit {
+  opacity: 0;
+}
+
+.intro-meteor {
+  position: absolute;
+  height: 1.25px;
+  border-radius: 999px;
+  opacity: 0;
+  transform-origin: 100% 50%;
+  background: linear-gradient(
+    90deg,
+    #071528 0%,
+    rgba(11, 31, 58, 0.96) 30%,
+    rgba(11, 31, 58, 0.58) 64%,
+    rgba(11, 31, 58, 0.16) 84%,
+    rgba(11, 31, 58, 0) 100%
+  );
+  filter: drop-shadow(0 0 2.5px rgba(11, 31, 58, 0.2));
+  will-change: transform, opacity;
+  animation: heytalk-meteor-sweep 720ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.intro-meteor::after {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #071528;
+  box-shadow: 0 0 6px rgba(11, 31, 58, 0.34);
+}
+
+.intro-meteor--one {
+  top: 11%;
+  right: 4%;
+  width: clamp(180px, 25vw, 330px);
+  animation-delay: 20ms;
+}
+
+.intro-meteor--two {
+  top: 23%;
+  right: 13%;
+  width: clamp(150px, 19vw, 260px);
+  animation-delay: 80ms;
+}
+
+.intro-meteor--gold {
+  background: linear-gradient(
+    90deg,
+    #071528 0%,
+    rgba(11, 31, 58, 0.96) 28%,
+    rgba(183, 121, 31, 0.94) 55%,
+    rgba(214, 158, 58, 0.62) 76%,
+    rgba(214, 158, 58, 0) 100%
+  );
+}
+
+.intro-meteor--three {
+  top: 36%;
+  right: 2%;
+  width: clamp(210px, 29vw, 380px);
+  animation-delay: 140ms;
+}
+
+@keyframes heytalk-meteor-sweep {
+  0% {
+    opacity: 0;
+    transform: translate3d(16vw, -11vh, 0) rotate(-33deg) scaleX(0.52);
+  }
+  10% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.82;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-82vw, 49vh, 0) rotate(-33deg) scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-meteor {
+    display: none;
+  }
+
+  .intro-overlay {
+    transition-duration: 80ms;
+  }
+
+}
+
+.welcome-line {
+  font-family: "Segoe UI", system-ui, -apple-system, "PingFang SC",
+    "Microsoft YaHei", "Hiragino Sans GB", Arial, sans-serif;
+  font-style: normal;
+  font-weight: 600;
+  font-size: clamp(23px, 2.35vw, 32px);
+  line-height: 1.35;
+  letter-spacing: -0.024em;
+  color: #14181d;
+  text-wrap: balance;
+}
+
+/* 欢迎语保持品牌海军蓝，点到就能把光标放进输入框。 */
+.welcome-line .welcome-accent {
+  color: var(--color-brand-dark);
+}
+
+/* 桌面欢迎行：云朵图形按实际负形占比放大，使视觉高度与中文字形齐平；
+   同时收紧图标与文案之间的空隙。移动端不显示品牌图标，因此不受影响。 */
+@media (min-width: 769px) {
+  div:has(> #welcomeLine) {
+    gap: 4px;
+  }
+
+  div:has(> #welcomeLine) > svg:first-child {
+    width: 46px;
+    height: 46px;
+  }
+}
+
+/* 鼠标点击不画焦点框；键盘 Tab 仍保留可见焦点（WCAG 2.4.7）。
+   之前的写法同时命中 :focus，点开「思考过程」会出现一整圈蓝框 —— 那就是它。 */
+button:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+summary:focus:not(:focus-visible) {
+  outline: none;
+}
+
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+

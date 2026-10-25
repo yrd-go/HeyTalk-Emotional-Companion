@@ -1,0 +1,107 @@
+# ---------------------------------------------------------------------------
+# requirements.txt
+# 由项目导入扫描生成（router.py / query_student.py / init_db.py / employee_api.py）
+#
+# 安装：
+#     pip install -r requirements.txt
+#
+# 说明：
+#   - 核心依赖是 pymongo（用于连接 MongoDB）；rag_demo.py、agent_tool_demo.py
+#     与 MCP 模块（mcp_weather_server.py / mcp_weather_client.py /
+#     mcp_protocol_probe.py）的依赖分别见下方对应分类段。
+#   - router.py 的 DeepSeek / MyMemory 调用使用标准库 urllib，
+#     无需 requests。
+#   - 其余导入（json / os / re / socket / subprocess / sys / urllib）均为
+#     Python 标准库，不写入本文件。
+# ---------------------------------------------------------------------------
+
+# MongoDB 官方 Python 驱动
+# 4.6 起内置对 MongoDB 5.0+ 的完整支持；>=4.9 才正式支持 Python 3.13/3.14。
+# 若本机解释器是 3.14，请勿降到 4.9 以下，否则可能装不上或运行报错。
+pymongo>=4.9,<5.0
+
+
+# ---------------------------------------------------------------------------
+# RAG 模块依赖（rag_demo.py 使用）
+#
+# 安装：
+#     pip install -r requirements.txt
+#
+# 说明：
+#   - 本模块的向量化与生成全部走云端 HTTP 接口（智谱 Embedding API +
+#     智谱 GLM-4-Flash / 本地 Ollama 生成），不引入 HuggingFace 本地模型，
+#     因此不会安装 torch / sentence-transformers，不额外占用磁盘。
+#   - langchain 提供 RecursiveCharacterTextSplitter 文本切分器；
+#     langchain-community 提供 Chroma 向量库封装；
+#     langchain-openai 用于调用所有 OpenAI 兼容端点
+#     （智谱 https://open.bigmodel.cn/api/paas/v4 与本地 Ollama
+#      http://localhost:11434/v1），因此无需安装各厂商的独立 SDK。
+#   - 注意：若本机解释器为 Python 3.14，需要 chromadb>=1.5.4；
+#     早期 chromadb 依赖 onnxruntime，3.14 下没有 wheel，pip 会尝试源码
+#     编译并失败。若安装报错，建议为 RAG 模块单独建 Python 3.11/3.12
+#     虚拟环境，再执行 pip install -r requirements.txt。
+# ---------------------------------------------------------------------------
+
+# LangChain 核心与集成
+langchain
+langchain-community
+langchain-openai
+langgraph
+# rag_demo.py 直接 `from langchain_text_splitters import RecursiveCharacterTextSplitter`，
+# 虽然它目前会随 langchain 一起被装上，但直接 import 的包必须显式声明，
+# 否则将来 langchain 调整依赖结构时，云端会出现 ModuleNotFoundError。
+langchain-text-splitters
+
+# 本地向量数据库
+chromadb
+
+# 环境变量管理：让 rag_demo.py 自动读取同目录下的 .env
+# （未安装时脚本会静默降级，仍可使用系统环境变量）
+python-dotenv
+
+
+# ---------------------------------------------------------------------------
+# MCP 模块依赖（mcp_weather_server.py / mcp_weather_client.py /
+#               mcp_protocol_probe.py 使用）
+#
+# 安装：
+#     pip install -r requirements.txt
+#
+# 说明：
+#   - mcp 是 MCP（Model Context Protocol）官方 Python SDK，提供 MCPServer
+#     （mcp 1.x 里叫 FastMCP）与服务端 / 客户端实现；服务端走 stdio 传输，
+#     由 LangChain 客户端以子进程方式拉起，不占用端口。
+#     [cli] extra 会额外装上命令行工具（mcp dev / mcp run / mcp install），
+#     其中 mcp dev（MCP Inspector）需要本机已安装 Node/npx。
+#   - langchain[mcp] 与上面 RAG 段的 langchain 是同一个发行包，这里通过
+#     extra 声明 MCP 适配层：MCP 能力已由独立的 langchain-mcp-adapters
+#     迁入 langchain.mcp 命名空间（MCPAdapter），该命名空间要求
+#     langchain>=1.4.0，目前为 beta，导入时会提示 LangChainBetaWarning。
+#   - 两者都要求 Python >= 3.10；若解释器为 3.14，仍按上面 RAG 段关于
+#     chromadb 的注意事项处理。
+#   - mcp_weather_client.py 在 langchain.mcp 不可用时会自动回退到旧的
+#     langchain-mcp-adapters（已停止积极维护），因此本文件不强制安装它，
+#     见下方注释行。
+# ---------------------------------------------------------------------------
+
+# MCP 协议官方 Python SDK + 命令行工具（Server / Client / 协议探针共用）
+# 锁 >=2.2 的原因（踩过的坑）：2.2 起 stdio 服务端会"抢占" fd 1 并把 fd 1 指向 stderr
+# （mcp/server/stdio.py，上游 issue #1933），从工具内部打印再也污染不到协议线。
+# 这直接改变了 src/mcp_demo 负向样例的行为：旧版 SDK 下能复现协议层失败（退出码 4），
+# 新版下复现不出来（探针如实返回退出码 5）。不锁版本会导致 CI 与本地装到不同 SDK、
+# 出现"CI 绿而本地红"的假绿 —— 所以这里显式锁定范围。
+mcp[cli]>=2.2,<3
+
+# LangChain 内置 MCP 适配层（MCPAdapter，需要 langchain>=1.4.0）
+langchain[mcp]>=1.4.0
+
+# 可选回退：旧版适配层，仅当 langchain.mcp 不可用时才需要手动安装
+# （mcp_weather_client.py 会自动探测并回退到它）
+# langchain-mcp-adapters
+
+# ---------------------------------------------------------------------------
+# Web 服务依赖（src/server/api.py：Starlette 后端）
+#
+# 说明：
+# ---------------------------------------------------------------------------
+starlette

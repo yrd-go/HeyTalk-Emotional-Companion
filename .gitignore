@@ -1,0 +1,108 @@
+# ---------------------------------------------------------------------------
+# .gitignore
+# 目标：防止本地配置、API 密钥、虚拟环境与生成物被提交到 Git 仓库
+#
+# 重构说明（2026-10，配合 Streamlit Cloud 部署）：
+#   - 数据资源已集中到 data/ 下；其中 data/chroma_db 按需求「随仓库提交」，
+#     云端冷启动无需重新向量化，因此**不再**忽略 chroma_db/。
+#   - 新增忽略 .streamlit/secrets.toml（云端密钥），保留 .example 模板。
+# ---------------------------------------------------------------------------
+
+# ---- 本地环境变量文件（含真实 API Key，绝对不要提交）----
+.env
+.env.local
+.env.*.local
+
+# 反忽略：模板文件不含真实密钥，可以安全提交
+!.env.example
+
+# ---- Streamlit 云端密钥（含真实值，绝对不要提交）----
+.streamlit/secrets.toml
+
+# ---- 虚拟环境（当前目录已存在 .venv/）----
+.venv/
+.venv-rag/
+venv/
+env/
+ENV/
+*.egg-info/
+
+# ---- Python 缓存与构建产物 ----
+__pycache__/
+*.py[cod]
+*$py.class
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- 测试用的临时目录（受限沙箱下不能写系统 %TEMP%，改在 tests/ 内建）----
+tests/.tmp_*/
+
+# ---- ★ 情绪陪伴对话历史（S3）——绝对不要提交 ----
+# data/chat_history/ 里是**真实的心理敏感对话**（失眠、家庭、自我否定…），
+# 属于敏感个人信息。它只应存在于使用者本机，一旦推到 GitHub
+# 就等于把私聊内容公开了，而且 git 历史里删不干净。
+data/chat_history/
+data/chat_history/*.json
+data/chat_history/*.json.tmp
+
+# ---- ★ 对话内反馈记录（S5）——同样不要提交 ----
+# data/feedback/feedback.jsonl 里是用户对回应的主观评价与留言，
+# 可能包含情绪相关的私人内容，只应留在使用者本机。
+data/feedback/
+data/feedback/*.jsonl
+
+# ---- ★ 关于用户本人的档案（S4）——同样不要提交 ----
+# data/profile/profile.json 里是"用户确认过的关于他自己的长期信息"
+# （学校、家庭关系、目标……）。它比对话记录更敏感：结构化、可检索、
+# 且看起来像一份"人物画像"。只能留在使用者本机。
+data/profile/
+data/profile/*.json
+
+# ---- 数据目录说明 ----
+# data/knowledge_base.txt、data/chroma_db/、data/test.db 都要提交（云端随仓库启动）。
+# 只有下面这类运行时残留需要忽略：
+*.db-journal
+*.db-wal
+data/*.tmp
+
+# 若你更希望云端首次运行时自动重建向量库，取消下面这行的注释即可：
+# data/chroma_db/
+
+# ---- 评测报告（scripts/eval_rag.py 生成，属产物、不提交）----
+reports/
+
+# ---- 日志与临时文件 ----
+*.log
+logs/*
+!logs/.gitkeep
+.DS_Store
+Thumbs.db
+~$*
+*.tmp
+
+# ---- 开发用界面截图（scripts/shoot_ui.py 产出，仅供本地自查）----
+.devshots/
+# ---- 托管模式：用户表与登录令牌（含口令哈希，绝不能提交）----
+data/users.json
+data/sessions.json
+data/invites.json
+
+# ---- 本地语音识别模型（几百 MB，不提交）----
+models/
+
+# ---- 隔离验证实例的数据目录（探针用，不提交）----
+.probe-data/
+
+# ---- Codex / 本地实验残留（不要混进 GitHub）----
+.codex-*.patch
+.tmp*.patch
+.tmp_*.py
+.tmp_apply_test.txt
+.tmp_cloud_*/
+.tmp_leaf_*/
+.tmp_*profile*/
+heytalk-cdp-*/
+node_modules/

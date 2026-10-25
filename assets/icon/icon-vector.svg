@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <mask id="heytalk-cloud-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="256" height="256">
+      <rect width="256" height="256" fill="white"/>
+      <path d="M 164 76 C 190 73 207 90 204 111 C 201 134 180 146 161 139 C 144 133 135 116 142 101 C 150 85 168 82 179 93 C 188 102 185 116 175 121 C 167 125 158 118 160 110 C 161 104 167 101 171 105"
+            fill="none" stroke="black" stroke-width="12" stroke-linecap="round"/>
+      <path d="M 101 83 C 93 91 91 103 96 112"
+            fill="none" stroke="black" stroke-width="8" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path mask="url(#heytalk-cloud-cut)" fill="#0b1f3a"
+        d="M 52 151 C 37 146 27 132 29 116 C 17 101 23 82 40 74 C 44 55 61 44 79 48 C 92 31 116 27 133 42 C 149 28 174 34 184 53 C 205 51 221 67 222 88 C 238 99 239 120 227 133 C 226 151 211 164 194 164 C 181 179 161 182 146 172 C 134 188 115 193 99 185 L 72 196 C 80 181 82 169 78 159 C 68 159 59 156 52 151 Z"/>
+</svg>

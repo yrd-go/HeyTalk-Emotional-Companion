@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# .gitattributes —— 统一换行符与二进制标记
+#
+# 为什么需要它：
+#   Windows 上 core.autocrlf=true 时，git 每次 add 都会刷一屏
+#   "warning: in the working copy of 'xxx', LF will be replaced by CRLF ..."。
+#   这里明确「仓库里一律存 LF」，Windows 检出也不再改写，警告消失，
+#   同时避免跨平台协作时整文件被换行符差异污染。
+#
+# 注意：.cmd / .bat 必须 CRLF（Windows 批处理对 LF 敏感），所以单独声明。
+# ---------------------------------------------------------------------------
+
+* text=auto eol=lf
+
+# Windows 批处理脚本保留 CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# 二进制资源：不做任何换行符转换（图片被转换会直接损坏）
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.xlsx binary
+*.pptx binary
+*.db binary
+*.bin binary

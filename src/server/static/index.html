@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heytalk</title>
+<link rel="icon" href="/api/icon">
+<style>
+/* ==========================================================================
+   Heytalk —— 新前端（原生 HTML/CSS/JS，无构建链）
+   --------------------------------------------------------------------------
+   设计依据（都有出处，不是随手定的）：
+     1. **纯白背景**（主人明确要求），层次靠极浅灰的侧边栏与气泡拉开；
+     2. **输入框内嵌模型选择器** —— 这是换前端的**唯一动机**：
+        Streamlit 的 st.chat_input 是封闭组件做不到（官方 issue #13601/#10737）；
+     3. **第一屏不留尴尬空白**：欢迎语与建议居中，输入框固定在底部
+        （Streamlit 版最大的观感问题就是"标题在顶、输入框在底、中间一片空"）；
+     4. 中文行高 1.75（1.5 以下会明显发挤）。
+   ========================================================================== */
+:root {
+  --bg: #ffffff;
+  --panel: #f7f8f9;
+  --panel-2: #eef0f2;
+  --text: #26282b;
+  --muted: #8a8f96;
+  --line: #e6e8ea;
+  --blue: #1877f2;
+  --blue-dark: #1466d6;
+  --gold: #f5c542;
+  --radius: 14px;
+  --maxw: 780px;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: var(--bg); color: var(--text);
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei",
+               "Hiragino Sans GB", system-ui, -apple-system, "Segoe UI",
+               Roboto, sans-serif;
+  font-size: 15px;
+}
+
+/* ---------- 布局：左侧栏 + 右侧主区 ---------- */
+.app { display: flex; height: 100vh; }
+
+.sidebar {
+  width: 232px; flex: 0 0 232px;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  padding: 14px 12px;
+  display: flex; flex-direction: column; gap: 14px;
+  overflow-y: auto;
+}
+/* 收起侧边栏：整体隐藏，主区自动占满 */
+.app.collapsed .sidebar { display: none; }
+.brand { display: flex; align-items: center; gap: 9px; padding: 2px 4px; }
+/* 品牌图标 = 只有图标本身，**没有底板、没有外框**（主人要求去掉那个方框）。
+   白心靠它自己的**蓝色描边**在浅灰底上立住，不需要白底衬。 */
+.brand-mark {
+  width: 31px; height: 31px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+}
+.brand-mark img { display: block; }
+
+/* 词标用 **CSS 文字**，不用图片。
+   为什么改回来（第 3 次尝试，原因是实跑踩出来的）：
+     我上一版把它做成了 164×72 的图片，再用 CSS 缩到 22px 显示 ——
+     从 72px 缩到 22px 会糊；再加上我为了"有型"加的负字距让字母互相重叠，
+     缩下来就变成一团"歪八七扭"的东西。
+     改回文字后：任何尺寸都**清晰**，而"紧凑 + 厚重"的效果靠
+     `letter-spacing`（字距）与 `font-weight` 就能做出来，本来也不需要图片。 */
+.brand-name {
+  font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue",
+               "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.45px;      /* 轻微收紧：这是现代词标"紧凑"的来源 */
+  color: #181c22;               /* 近黑，比正文更深，作为品牌色更"实" */
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* 顶部条只在**侧边栏收起时**出现：
+   收起后显示「蓝白心图标 + Heytalk + 椭圆框（折叠 / 开新对话）」，
+   像主人给的参考图那样。展开时整条隐藏 —— 这样任何状态下
+   折叠入口都只有一处，不会重复。
+   （用户的原话："左边侧栏折叠了的话，要做出蓝白色心形图标然后是一个椭圆框
+     包着一个折叠图标与那个开新对话图标"。） */
+.topbar { display: none; }
+.app.collapsed .topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  flex: 0 0 auto; padding: 10px 16px 2px; min-height: 46px;
+}
+.topbar-brand { display: flex; align-items: center; gap: 8px; }
+.topbar-brand .brand-name { font-size: 17px; }
+/* 椭圆框里装两个图标：收起/展开侧边栏、开新对话 */
+.topbar-frame {
+  display: flex; align-items: center; gap: 3px;
+  padding: 3px; border: 1px solid var(--line); border-radius: 999px;
+  background: #fff;
+}
+
+/* 侧边栏收起按钮（和品牌名同一行，靠右） */
+.brand { justify-content: space-between; }
+.brand-left { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.icon-btn {
+  width: 28px; height: 28px; flex: 0 0 auto; border: none; border-radius: 7px;
+  background: transparent; color: #5b636d; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.icon-btn:hover { background: var(--panel-2); color: var(--text); }
+.icon-btn svg { width: 17px; height: 17px; }
+
+.new-chat {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 10px 12px; cursor: pointer;
+  background: var(--blue); color: #fff; border: none;
+  border-radius: 11px; font-size: 14px; font-weight: 600;
+  font-family: inherit;
+}
+.new-chat:hover { background: var(--blue-dark); }
+.new-chat svg { width: 17px; height: 17px; }
+
+.side-title {
+  font-size: 12px; color: var(--muted); font-weight: 600;
+  padding: 0 4px; letter-spacing: 0.3px;
+}
+.side-note { font-size: 12px; color: var(--muted); line-height: 1.7; padding: 0 4px; }
+.side-note a { color: var(--blue-dark); }
+
+/* ---------- 聊天记录列表 ---------- */
+.side-block { display: flex; flex-direction: column; gap: 7px; }
+.side-history { min-height: 0; }
+.history-list {
+  display: flex; flex-direction: column; gap: 1px;
+  overflow-y: auto; min-height: 0;
+}
+.history-group {
+  font-size: 11.5px; color: var(--muted); font-weight: 600;
+  padding: 9px 4px 3px;
+}
+.history-item {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; text-align: left; padding: 7px 8px;
+  border: none; border-radius: 8px; background: transparent;
+  font-family: inherit; font-size: 13px; color: var(--text);
+  cursor: pointer; line-height: 1.45;
+}
+.history-item:hover { background: var(--panel-2); }
+.history-item.active { background: #e4ecf7; color: var(--blue-dark); font-weight: 600; }
+.history-item .title {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.history-item .del {
+  flex: 0 0 auto; opacity: 0; border: none; background: transparent;
+  color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1;
+  padding: 0 2px; border-radius: 5px;
+}
+.history-item:hover .del { opacity: 1; }
+.history-item .del:hover { color: #e5484d; background: #fdecec; }
+/* 时间：小、淡、右对齐，不跟标题抢注意力 */
+.history-item .when {
+  flex: 0 0 auto; font-size: 11px; color: var(--muted);
+  font-weight: 400; padding-left: 4px;
+}
+
+/* ---------- 可折叠区块（求助渠道）---------- */
+.side-collapse > summary {
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; list-style: none; padding: 2px 4px;
+  user-select: none;
+}
+.side-collapse > summary::-webkit-details-marker { display: none; }
+.side-collapse > summary:hover { color: var(--blue-dark); }
+.side-collapse .chev { width: 13px; height: 13px; transition: transform 160ms ease; }
+.side-collapse[open] .chev { transform: rotate(180deg); }
+.side-collapse > .side-note { padding-top: 6px; }
+
+/* ---------- 主区 ---------- */
+.main {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-direction: column; height: 100vh;
+  position: relative;          /* 给"展开侧边栏"按钮做定位基准 */
+}
+.scroll { flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; }
+.inner {
+  max-width: var(--maxw); margin: 0 auto; padding: 0 20px;
+  flex: 1 1 auto; display: flex; flex-direction: column; width: 100%;
+}
+
+/* 欢迎区：撑满可用高度并**垂直居中**。
+   之前写的是 min-height:100%，但父元素没有确定高度，所以没生效 ——
+   结果是内容全部顶在上面，下面留一大片空白（截图里一眼就能看到）。 */
+.welcome {
+  flex: 1 1 auto;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 22px;
+  padding: 30px 20px;
+}
+.welcome h1 { font-size: 30px; margin: 0; font-weight: 700; letter-spacing: -0.5px; }
+.welcome .sub { color: var(--muted); font-size: 14px; margin: -12px 0 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 9px; justify-content: center; }
+.chip {
+  padding: 8px 15px; border: 1px solid var(--line); border-radius: 999px;
+  background: #fff; color: var(--text); font-size: 13.5px; cursor: pointer;
+  font-family: inherit;
+}
+.chip:hover { border-color: #cfd4d9; background: var(--panel); }
+
+/* 消息 */
+.turns { padding: 26px 0 8px; display: flex; flex-direction: column; gap: 18px; }
+.turn { display: flex; }
+.turn.user { justify-content: flex-end; }
+.bubble {
+  max-width: 76%; padding: 11px 15px; border-radius: var(--radius);
+  line-height: 1.75; white-space: pre-wrap; word-break: break-word;
+}
+.turn.user .bubble { background: var(--blue); color: #fff; border-bottom-right-radius: 5px; }
+.turn.bot .bubble { background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+.turn.bot { flex-direction: column; align-items: flex-start; gap: 5px; }
+.meta-line { font-size: 12px; color: var(--muted); padding-left: 3px; }
+.role-tag { font-size: 12px; color: var(--muted); padding-left: 3px; }
+
+/* ---------- 输入区（本页的重点）---------- */
+.composer-wrap {
+  flex: 0 0 auto; padding: 8px 20px 20px;
+}
+.composer {
+  max-width: var(--maxw); margin: 0 auto;
+  border: 1px solid var(--line); border-radius: 18px;
+  background: #fff; padding: 11px 12px 10px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+  transition: border-color 120ms ease;
+}
+.composer:focus-within { border-color: #c9d4e2; }
+.composer textarea {
+  width: 100%; border: none; outline: none; resize: none;
+  font-family: inherit; font-size: 15px; line-height: 1.65;
+  color: var(--text); background: transparent;
+  max-height: 180px; min-height: 24px;
+}
+.composer textarea::placeholder { color: #a6abb2; }
+.composer-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-top: 8px;
+}
+
+/* 模型选择器：就在输入框**内部**的左下角 —— 这正是不用 Streamlit 的原因 */
+.model-select {
+  position: relative;
+}
+.model-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border: none; border-radius: 999px;
+  background: transparent; color: var(--muted);
+  font-size: 13px; font-family: inherit; cursor: pointer;
+}
+.model-btn:hover { background: var(--panel); color: var(--text); }
+.model-btn svg { width: 13px; height: 13px; }
+.model-menu {
+  position: absolute; bottom: calc(100% + 6px); left: 0;
+  min-width: 232px; background: #fff; border: 1px solid var(--line);
+  border-radius: 11px; padding: 5px; z-index: 20;
+  box-shadow: 0 8px 26px rgba(16, 24, 40, 0.12); display: none;
+}
+.model-menu.open { display: block; }
+.model-item {
+  display: block; width: 100%; text-align: left; padding: 8px 10px;
+  border: none; background: transparent; border-radius: 8px;
+  font-size: 13.5px; font-family: inherit; color: var(--text); cursor: pointer;
+}
+.model-item:hover { background: var(--panel); }
+.model-item[aria-selected="true"] { color: var(--blue-dark); font-weight: 600; }
+.model-item[aria-selected="true"]::after { content: "  ✓"; }
+
+.send {
+  width: 33px; height: 33px; flex: 0 0 auto; border: none; border-radius: 50%;
+  background: var(--blue); color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.send:disabled { background: #cfd6de; cursor: default; }
+.send svg { width: 16px; height: 16px; }
+.send.stop { background: #e5484d; }
+
+.disclaimer { max-width: var(--maxw); margin: 9px auto 0; font-size: 11.5px; color: var(--muted); text-align: center; }
+
+/* 思考中：三个点跳动（克制，不用满屏动画） */
+.thinking { display: inline-flex; gap: 4px; align-items: center; padding: 3px 0; }
+.thinking i {
+  width: 6px; height: 6px; border-radius: 50%; background: #b9c0c8;
+  animation: bounce 1.15s infinite ease-in-out;
+}
+.thinking i:nth-child(2) { animation-delay: 0.16s; }
+.thinking i:nth-child(3) { animation-delay: 0.32s; }
+@keyframes bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.55; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thinking i { animation: none; }
+}
+@media (max-width: 760px) {
+  .sidebar { display: none; }
+  .bubble { max-width: 88%; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ---------- 左侧栏 ---------- -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-left">
+        <span class="brand-mark"><img src="/api/icon" alt="" width="30" height="30"></span>
+        <span class="brand-name">Heytalk</span>
+      </div>
+      <!-- 侧边栏展开时，折叠按钮在这里（主人恢复的要求：
+           上一轮我误把"主区那个重复的"理解成"侧边栏这个"，删错了） -->
+      <button class="icon-btn" id="collapseBtn" type="button" title="收起侧边栏">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="4.5" width="18" height="15" rx="3.5"/>
+          <path d="M9.5 4.5v15"/>
+        </svg>
+      </button>
+    </div>
+
+    <button class="new-chat" id="newChat" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <!-- 圆形轮廓（带一个缺口 + 回绕箭头），圈里是 + -->
+        <path d="M20.6 12a8.6 8.6 0 1 1-2.9-6.5"/>
+        <path d="M20.8 3.4v4.4h-4.4"/>
+        <path d="M12 8.6v6.8M8.6 12h6.8"/>
+      </svg>
+      开新对话
+    </button>
+
+    <!-- 聊天记录：按"今天 / 7 天内 / 30 天内"分组（仿常见聊天软件的会话列表） -->
+    <div class="side-block side-history">
+      <div class="side-title">聊天记录</div>
+      <div class="history-list" id="historyList"></div>
+    </div>
+
+    <!-- 求助渠道默认**折叠**（主人反馈"太长了不美观"）。
+         用原生 <details>：不需要 JS，键盘/无障碍也天然支持。
+         但注意：内容只是被折叠，**没有删掉** —— 需要时一点就能看到。 -->
+    <details class="side-block side-collapse" style="margin-top:auto">
+      <summary class="side-title">
+        <span>需要真人帮忙时</span>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div class="side-note" id="hotlines">加载中…</div>
+    </details>
+  </aside>
+
+  <!-- ---------- 主区 ---------- -->
+  <main class="main">
+    <!-- 顶部条：
+           · 侧边栏收起时，这里显示"蓝白心图标 + 名字"（主人要求：
+             收起后不要只剩一个折叠图标，品牌要还在）
+           · 右侧那个圆角框里装两个图标：开新对话、展开/收起侧边栏
+             （主人要求：不要重复出现折叠图标，统一放这里） -->
+    <header class="topbar">
+      <div class="topbar-brand">
+        <span class="brand-mark"><img src="/api/icon" alt="" width="26" height="26"></span>
+        <span class="brand-name">Heytalk</span>
+      </div>
+      <div class="topbar-frame">
+        <button class="icon-btn" id="topNewChat" type="button" title="开新对话">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20.6 12a8.6 8.6 0 1 1-2.9-6.5"/>
+            <path d="M20.8 3.4v4.4h-4.4"/>
+            <path d="M12 8.6v6.8M8.6 12h6.8"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="toggleBtn" type="button" title="收起侧边栏">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4.5" width="18" height="15" rx="3.5"/>
+            <path d="M9.5 4.5v15"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+    <div class="scroll" id="scroll">
+      <div class="inner" id="inner">
+        <!-- 欢迎区（有消息后被替换） -->
+        <section class="welcome" id="welcome">
+          <h1>今天，你过得怎么样？</h1>
+          <p class="sub">陪着你说说话</p>
+          <div class="chips" id="chips"></div>
+        </section>
+        <div class="turns" id="turns"></div>
+      </div>
+    </div>
+
+    <div class="composer-wrap">
+      <form class="composer" id="composer" autocomplete="off">
+        <textarea id="input" rows="1" placeholder="说点什么…"></textarea>
+        <div class="composer-row">
+          <!-- ★ 模型选择器在输入框内部 —— Streamlit 做不到的就是这个 -->
+          <div class="model-select">
+            <button class="model-btn" id="modelBtn" type="button"
+                    aria-haspopup="listbox" aria-expanded="false">
+              <span id="modelLabel">加载中…</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+                   aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="model-menu" id="modelMenu" role="listbox"></div>
+          </div>
+          <button class="send" id="send" type="submit" title="发送">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+          </button>
+        </div>
+      </form>
+      <div class="disclaimer" id="disclaimer"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   前端逻辑：只做三件事 —— 拉配置、发消息收流、渲染。
+   刻意保持简单：没有框架、没有构建步骤，改完刷新即可。
+   ========================================================================== */
+
+const $ = (id) => document.getElementById(id);
+const state = {
+  engines: [], engine: null, suggestions: [],
+  sessionId: localStorage.getItem("heytalk_sid") || newSessionId(),
+  busy: false, controller: null,
+  history: [],
+};
+localStorage.setItem("heytalk_sid", state.sessionId);
+// 侧边栏收起状态也记住：下次打开还是你习惯的样子
+const collapsed = localStorage.getItem("heytalk_sidebar") === "collapsed";
+if (collapsed) document.querySelector(".app").classList.add("collapsed");
+
+/* 开发用截图钩子：?collapsed=1 强制收起、?menu=1 打开模型菜单。
+   为什么要有它：我的"眼睛"是 scripts/shoot_ui.py（无头浏览器截图），
+   而它只能用 --screenshot 截一次静态页面，**没法点击**。
+   有了这个钩子，收起状态与菜单展开状态也能被截到、被看到。
+   对真实使用没有任何影响（要手动带参数才会生效）。 */
+const devParams = new URLSearchParams(location.search);
+
+function newSessionId() {
+  // 必须与服务端的会话 id 格式一致：带连字符的 UUID。
+  // 服务端校验是**严格白名单**（因为 id 会用于拼文件路径，防 ../ 穿越），
+  // 我第一版用 getRandomValues 拼了个无连字符的 32 位 hex，服务端直接拒收，
+  // 结果"所有对话都存不进去"。所以这里优先用 crypto.randomUUID()。
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16),
+          hex.slice(16, 20), hex.slice(20)].join("-");
+}
+
+/* ---------- 启动：拉配置 ---------- */
+async function boot() {
+  try {
+    const res = await fetch("/api/bootstrap");
+    const data = await res.json();
+    state.engines = data.engines || [];
+    state.engine = data.default_engine;
+    state.suggestions = data.opening_suggestions || [];
+    renderModelMenu();
+    renderChips();
+    renderHotlines(data.hotlines_markdown || "");
+    $("disclaimer").textContent = data.disclaimer || "";
+    await loadHistory();
+    await restoreCurrentSession();
+  } catch (err) {
+    $("modelLabel").textContent = "连接失败";
+    addBot("（后端没起来，或者地址不对。请确认服务已启动。）");
+  }
+}
+
+/* ---------- 聊天记录 ---------- */
+async function loadHistory() {
+  try {
+    const res = await fetch("/api/history");
+    const data = await res.json();
+    state.history = data.sessions || [];
+  } catch (_) {
+    state.history = [];
+  }
+  renderHistory();
+}
+
+function renderHistory() {
+  const box = $("historyList");
+  box.innerHTML = "";
+  if (!state.history.length) {
+    const empty = document.createElement("div");
+    empty.className = "side-note";
+    empty.textContent = "还没有记录";
+    box.appendChild(empty);
+    return;
+  }
+
+  // 按"今天 / 7 天内 / 30 天内 / 更早"分组 —— 和常见聊天软件的会话列表一致
+  const groups = [
+    ["今天", (d) => d < 1],
+    ["7 天内", (d) => d >= 1 && d < 7],
+    ["30 天内", (d) => d >= 7 && d < 30],
+    ["更早", (d) => d >= 30],
+  ];
+  const placed = new Set();
+  groups.forEach(([label, test]) => {
+    const items = state.history.filter(
+      (s) => !placed.has(s.session_id) && test(Number(s.age_days) || 0));
+    if (!items.length) return;
+    items.forEach((s) => placed.add(s.session_id));
+
+    const head = document.createElement("div");
+    head.className = "history-group";
+    head.textContent = label;
+    box.appendChild(head);
+
+    items.forEach((s) => box.appendChild(historyRow(s)));
+  });
+}
+
+/** 把时间戳变成人话。
+ *  截图里看到的是 "2026-10-13 06:15 UTC | 1 轮" —— 那是日志，不是给人看的。
+ *  改成聊天软件的做法：今天只显示时间，今年显示月日，更早显示年月日。
+ *  注意 updated_at 是 UTC，`new Date()` 会自动转成本地时区。 */
+function humanTime(iso, fallbackAge) {
+  const raw = String(iso || "");
+  const d = raw ? new Date(raw) : null;
+  if (!d || Number.isNaN(d.getTime())) {
+    return fallbackAge != null ? `${fallbackAge} 天前` : "";
+  }
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const hm = String(d.getHours()).padStart(2, "0") + ":" +
+             String(d.getMinutes()).padStart(2, "0");
+  if (sameDay) return "今天 " + hm;
+  if (d.getFullYear() === now.getFullYear()) {
+    return `${d.getMonth() + 1}月${d.getDate()}日`;
+  }
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+function historyRow(session) {
+  const row = document.createElement("div");
+  row.className = "history-item" +
+    (session.session_id === state.sessionId ? " active" : "");
+  row.setAttribute("role", "button");
+  row.tabIndex = 0;
+
+  const title = document.createElement("span");
+  title.className = "title";
+  title.textContent = session.title || "（还没有说话）";
+  title.title = session.title || "";
+  row.appendChild(title);
+
+  const when = document.createElement("span");
+  when.className = "when";
+  when.textContent = humanTime(session.updated_at, session.age_days);
+  row.appendChild(when);
+
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "del";
+  del.title = "删除这条记录";
+  del.textContent = "×";
+  del.addEventListener("click", async (ev) => {
+    ev.stopPropagation();          // 别触发"切换会话"
+    await fetch("/api/history/" + encodeURIComponent(session.session_id),
+                { method: "DELETE" });
+    if (session.session_id === state.sessionId) await startNewSession();
+    await loadHistory();
+  });
+  row.appendChild(del);
+
+  const open = () => selectSession(session.session_id);
+  row.addEventListener("click", open);
+  row.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); open(); }
+  });
+  return row;
+}
+
+async function selectSession(sid) {
+  state.sessionId = sid;
+  localStorage.setItem("heytalk_sid", sid);
+  renderHistory();
+  await restoreCurrentSession();
+}
+
+/** 把服务端保存的轮次渲染出来（刷新/切换会话后恢复界面）。 */
+async function restoreCurrentSession() {
+  $("turns").innerHTML = "";
+  let data = null;
+  try {
+    const res = await fetch("/api/history/" + encodeURIComponent(state.sessionId));
+    if (res.ok) data = await res.json();
+  } catch (_) { /* 读不到就当新会话 */ }
+
+  const turns = (data && data.turns) || [];
+  if (!turns.length) {
+    showWelcome();
+    return;
+  }
+  hideWelcome();
+  turns.forEach((t) => {
+    if (t.role === "user") {
+      addUser(t.content);
+    } else {
+      const meta = [];
+      if (t.elapsed_ms) meta.push("用 " + Math.round(t.elapsed_ms / 1000) + " 秒回了你");
+      if (t.fixed_reply || t.safety_level === "high") {
+        meta.push("（这条是固定的安全回应，由规则生成，不是模型写的）");
+      }
+      addBot(t.content, meta.join("　"));
+    }
+  });
+  scrollToEnd();
+}
+
+/** 开一条全新对话（服务端生成 id 并返回）。 */
+async function startNewSession() {
+  try {
+    const res = await fetch("/api/history/new", { method: "POST" });
+    const data = await res.json();
+    if (data.session_id) {
+      state.sessionId = data.session_id;
+      localStorage.setItem("heytalk_sid", data.session_id);
+    }
+  } catch (_) {
+    state.sessionId = newSessionId();
+    localStorage.setItem("heytalk_sid", state.sessionId);
+  }
+  $("turns").innerHTML = "";
+  showWelcome();
+  await loadHistory();
+}
+
+function showWelcome() {
+  if (!$("welcome")) {
+    const section = document.createElement("section");
+    section.className = "welcome";
+    section.id = "welcome";
+    section.innerHTML =
+      '<h1>今天，你过得怎么样？</h1><p class="sub">陪着你说说话</p>' +
+      '<div class="chips" id="chips"></div>';
+    $("inner").insertBefore(section, $("turns"));
+    renderChips();
+  }
+}
+
+function renderHotlines(markdown) {
+  // 极简 markdown：只处理行首 "- "（列表项），够用即可
+  const html = (markdown || "").split("\n").map((line) => {
+    const text = line.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    return text.startsWith("- ")
+      ? '<div style="padding-left:10px">• ' + text.slice(2) + "</div>"
+      : text;
+  }).join("");
+  $("hotlines").innerHTML = html;
+}
+
+/* ---------- 侧边栏收起 ---------- */
+function toggleSidebar(force) {
+  const app = document.querySelector(".app");
+  const next = (force === undefined) ? !app.classList.contains("collapsed") : force;
+  app.classList.toggle("collapsed", next);
+  localStorage.setItem("heytalk_sidebar", next ? "collapsed" : "open");
+  const btn = $("toggleBtn");
+  if (btn) btn.title = next ? "展开侧边栏" : "收起侧边栏";
+}
+$("collapseBtn").addEventListener("click", () => toggleSidebar(true));
+$("toggleBtn").addEventListener("click", () => toggleSidebar());
+$("topNewChat").addEventListener("click", () => { startNewSession(); });
+// 初始化时同步一次按钮提示（收起状态是从 localStorage 恢复的）
+toggleSidebar(document.querySelector(".app").classList.contains("collapsed"));
+
+/* 开发钩子（供截图用）。
+   ★ 关键：这里**点真实按钮**，而不是直接调函数。
+     为什么（这是一个真实事故的教训）：
+       我原来写的是 `toggleSidebar(true)`，直接调函数 —— 于是即使
+       侧边栏折叠按钮**根本没注册监听**（我漏加了），
+       用 `?collapsed=1` 截出来的图依然是"正确"的收起状态，
+       **我的视觉验证完全看不见这个 bug**，最后是主人点了一下才发现。
+       改成 `.click()` 之后，截图走的就是用户真实路径：
+       监听没注册 → 点了没反应 → 截图立刻暴露。 */
+function devClick(id) {
+  const el = $(id);
+  if (el) el.click();
+}
+if (devParams.get("collapsed") === "1") devClick("collapseBtn");
+if (devParams.get("collapsed") === "0") devClick("toggleBtn");
+if (devParams.get("menu") === "1") {
+  setTimeout(() => devClick("modelBtn"), 300);
+}
+
+function renderModelMenu() {
+  const label = state.engines.find((e) => e.id === state.engine);
+  $("modelLabel").textContent = label ? label.label : "没有可用模型";
+  const menu = $("modelMenu");
+  menu.innerHTML = "";
+  state.engines.forEach((eng) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "model-item";
+    btn.textContent = eng.label;
+    btn.setAttribute("role", "option");
+    btn.setAttribute("aria-selected", String(eng.id === state.engine));
+    btn.addEventListener("click", () => {
+      state.engine = eng.id;
+      renderModelMenu();
+      closeMenu();
+    });
+    menu.appendChild(btn);
+  });
+}
+
+function renderChips() {
+  const box = $("chips");
+  box.innerHTML = "";
+  state.suggestions.forEach((text) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip";
+    chip.textContent = text;
+    chip.addEventListener("click", () => {
+      $("input").value = text;
+      send();
+    });
+    box.appendChild(chip);
+  });
+}
+
+/* ---------- 菜单开关 ---------- */
+function closeMenu() {
+  $("modelMenu").classList.remove("open");
+  $("modelBtn").setAttribute("aria-expanded", "false");
+}
+$("modelBtn").addEventListener("click", () => {
+  const menu = $("modelMenu");
+  const open = menu.classList.toggle("open");
+  $("modelBtn").setAttribute("aria-expanded", String(open));
+});
+document.addEventListener("click", (ev) => {
+  if (!ev.target.closest(".model-select")) closeMenu();
+});
+
+/* ---------- 渲染消息 ---------- */
+function hideWelcome() {
+  const w = $("welcome");
+  if (w) w.remove();
+}
+
+function addUser(text) {
+  hideWelcome();
+  const turn = document.createElement("div");
+  turn.className = "turn user";
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = text;
+  turn.appendChild(bubble);
+  $("turns").appendChild(turn);
+  scrollToEnd();
+}
+
+function addBot(text, metaText) {
+  hideWelcome();
+  const turn = document.createElement("div");
+  turn.className = "turn bot";
+  if (metaText) {
+    const meta = document.createElement("div");
+    meta.className = "meta-line";
+    meta.textContent = metaText;
+    turn.appendChild(meta);
+  }
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = text;
+  turn.appendChild(bubble);
+  $("turns").appendChild(turn);
+  scrollToEnd();
+  return bubble;
+}
+
+function addBotPending() {
+  hideWelcome();
+  const turn = document.createElement("div");
+  turn.className = "turn bot";
+  turn.id = "pending";
+  const meta = document.createElement("div");
+  meta.className = "meta-line";
+  meta.innerHTML = '<span class="thinking"><i></i><i></i><i></i></span>';
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  turn.appendChild(meta);
+  turn.appendChild(bubble);
+  $("turns").appendChild(turn);
+  scrollToEnd();
+  return { turn, meta, bubble };
+}
+
+function scrollToEnd() {
+  const s = $("scroll");
+  s.scrollTop = s.scrollHeight;
+}
+
+/* ---------- 发送（SSE over fetch）---------- */
+async function send() {
+  const input = $("input");
+  const text = input.value.trim();
+  if (!text || state.busy) return;
+
+  addUser(text);
+  input.value = "";
+  autoGrow();
+
+  state.busy = true;
+  setSending(true);
+  const { turn, meta, bubble } = addBotPending();
+  let metaText = [];
+
+  try {
+    state.controller = new AbortController();
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: state.sessionId,
+        message: text,
+        engine: state.engine,
+      }),
+      signal: state.controller.signal,
+    });
+    if (!res.ok || !res.body) throw new Error("HTTP " + res.status);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      // SSE 以空行分隔每一条事件
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop();
+      frames.forEach((frame) => handleFrame(frame, bubble, meta, metaText));
+    }
+    if (buffer.trim()) handleFrame(buffer, bubble, meta, metaText);
+  } catch (err) {
+    if (err.name !== "AbortError") {
+      bubble.textContent = "（回应中断了，你可以再说一句。）";
+    }
+  } finally {
+    state.busy = false;
+    setSending(false);
+    state.controller = null;
+    turn.removeAttribute("id");
+    scrollToEnd();
+  }
+}
+
+function handleFrame(frame, bubble, meta, metaText) {
+  const lines = frame.split("\n");
+  let event = "message", data = "";
+  lines.forEach((line) => {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) data += line.slice(5).trim();
+  });
+  if (!data) return;
+  let payload = {};
+  try { payload = JSON.parse(data); } catch (_) { return; }
+
+  if (event === "delta") {
+    bubble.textContent += payload.text || "";
+    scrollToEnd();
+  } else if (event === "meta") {
+    if (payload.safety === "high") {
+      metaText.push("已触发安全关注：这条是固定的安全回应，不是模型写的");
+    }
+    if (payload.role) metaText.push("· " + payload.role);
+    if (metaText.length) meta.innerHTML = metaText.join("　");
+    else meta.innerHTML = '<span class="thinking"><i></i><i></i><i></i></span>';
+  } else if (event === "error") {
+    metaText.push("（模型报错：" + (payload.text || "") + "）");
+    meta.innerHTML = metaText.join("　");
+  } else if (event === "done") {
+    if (payload.elapsed_ms) {
+      metaText = metaText.filter((t) => !t.startsWith("用 "));
+      metaText.unshift("用 " + Math.round(payload.elapsed_ms / 1000) + " 秒回了你");
+    }
+    if (metaText.length) meta.innerHTML = metaText.join("　");
+  }
+}
+
+/* ---------- 输入框行为 ---------- */
+function autoGrow() {
+  const el = $("input");
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 180) + "px";
+}
+
+function setSending(on) {
+  const btn = $("send");
+  btn.disabled = !on && false;
+  btn.classList.toggle("stop", on);
+  btn.title = on ? "停止" : "发送";
+  btn.innerHTML = on
+    ? '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+}
+
+$("composer").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  if (state.busy && state.controller) {   // 发送中再按 = 停止
+    state.controller.abort();
+    return;
+  }
+  send();
+});
+
+$("input").addEventListener("input", autoGrow);
+$("input").addEventListener("keydown", (ev) => {
+  // Enter 发送，Shift+Enter 换行（和常见聊天软件一致）
+  if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) {
+    ev.preventDefault();
+    send();
+  }
+});
+
+$("newChat").addEventListener("click", () => { startNewSession(); });
+
+boot();
+</script>
+</body>
+</html>

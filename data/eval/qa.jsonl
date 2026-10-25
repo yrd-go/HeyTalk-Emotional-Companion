@@ -1,0 +1,18 @@
+{"id": "e01", "chapter": 1, "question": "一焦虑就胸口发紧、脑子停不下来怎么办", "expect_ids": ["E1-01"], "expect_lines": [[35, 44]]}
+{"id": "e02", "chapter": 1, "question": "情绪快要控制不住了，有什么马上能打断的办法", "expect_ids": ["E1-02"], "expect_lines": [[45, 50]]}
+{"id": "e03", "chapter": 1, "question": "心慌的时候怎么把自己从念头里拉回来", "expect_ids": ["E1-03"], "expect_lines": [[51, 57]]}
+{"id": "e04", "chapter": 1, "question": "躺下就是睡不着，脑子停不下来", "expect_ids": ["E1-04", "E3-01"], "expect_lines": [[58, 66], [106, 112]]}
+{"id": "e05", "chapter": 1, "question": "状态差很久了，先从哪件小事开始做起", "expect_ids": ["E1-05"], "expect_lines": [[67, 75]]}
+{"id": "e06", "chapter": 2, "question": "心里说不出的闷，怎么弄清楚自己到底怎么了", "expect_ids": ["E2-01"], "expect_lines": [[76, 80]]}
+{"id": "e07", "chapter": 2, "question": "总觉得必须马上好起来，越想越难受", "expect_ids": ["E2-02"], "expect_lines": [[81, 85]]}
+{"id": "e08", "chapter": 2, "question": "同一件事翻来覆去想，越想越糟", "expect_ids": ["E2-03"], "expect_lines": [[86, 90]]}
+{"id": "e09", "chapter": 2, "question": "焦虑的时候分不清哪些是我能管的", "expect_ids": ["E2-04"], "expect_lines": [[91, 96]]}
+{"id": "e10", "chapter": 2, "question": "情绪很糟的时候适合做重要决定吗", "expect_ids": ["E2-05"], "expect_lines": [[97, 105]]}
+{"id": "e11", "chapter": 3, "question": "事情堆着不想动，一想到就烦躁", "expect_ids": ["E3-02"], "expect_lines": [[113, 118]]}
+{"id": "e12", "chapter": 3, "question": "面试前心跳加速手发抖，怎么缓解", "expect_ids": ["E3-03"], "expect_lines": [[119, 126]]}
+{"id": "e13", "chapter": 3, "question": "跟人聊完总反复回想自己是不是说错话了", "expect_ids": ["E3-04"], "expect_lines": [[127, 137]]}
+{"id": "e14", "chapter": 4, "question": "脑子里全是骂自己的声音，怎么让它轻一点", "expect_ids": ["E4-01", "E4-02"], "expect_lines": [[138, 142], [143, 148]]}
+{"id": "e15", "chapter": 4, "question": "对自己特别苛刻，对朋友却很有耐心", "expect_ids": ["E4-03"], "expect_lines": [[149, 157]]}
+{"id": "e16", "chapter": 5, "question": "想找人陪，又怕麻烦别人，开不了口", "expect_ids": ["E5-01"], "expect_lines": [[158, 163]]}
+{"id": "e17", "chapter": 6, "question": "什么样的情况该去看医生或者找咨询师", "expect_ids": ["E6-01"], "expect_lines": [[179, 185]]}
+{"id": "e18", "chapter": 6, "question": "朋友状态很差，我该怎么陪他", "expect_ids": ["E6-05"], "expect_lines": [[208, 225]]}
