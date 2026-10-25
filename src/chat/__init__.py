@@ -26,5 +26,5 @@ from __future__ import annotations
 
 __all__ = ["safety", "state", "persona", "conversation", "history",
            "feedback", "tools", "roles", "role_router", "profile",
-           "knowledge", "character", "weather", "translation", "languages",
+           "knowledge", "weather", "translation", "languages",
            "dialogue_planner"]

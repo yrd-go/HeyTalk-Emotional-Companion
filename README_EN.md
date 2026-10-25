@@ -255,20 +255,7 @@ Three safety constraints (all tested):
 3. **Permission beats inference** — an authoritative posture requires an explicit request for
    advice, never an inferred mood.
 
-### 5. The corner companion (`src/chat/character.py`)
-
-Six hand-written SVG animals (bear / cat / owl / hen / fox / bird) that change with the posture.
-No image files: offline, no licensing questions.
-
-**Only three states are allowed, none of them demanding**: doing its own thing, a startled hop when
-tapped, and falling asleep after long inactivity. There is deliberately **no** "waiting / sad /
-trying hard for you" state:
-
-> A character that looks hurt when ignored communicates "I have a need you failed to meet, and it
-> is your job to meet it". For someone already low and self-blaming, the likely feeling is guilt.
-> A scan over **rendered output** for 17 banned words enforces this.
-
-### 6. Feedback loop: making "did it help" measurable (`src/chat/feedback.py`)
+### 5. Feedback loop: making "did it help" measurable (`src/chat/feedback.py`)
 
 Every third assistant turn, a skippable card asks: **helped / not sure / did not help**. It also
 records the **valence change across that turn** as objective cross-validation, plus **which posture
@@ -281,7 +268,7 @@ into negative is the most common way to fool yourself).
 
 ## Capability features
 
-### 7. Global real-time weather (`src/chat/weather.py`)
+### 6. Global real-time weather (`src/chat/weather.py`)
 
 - Source **Open-Meteo**: **any city worldwide**, current conditions plus a 16-day forecast, from 17
   national weather services (including China CMA, US NOAA, Japan JMA);
@@ -292,7 +279,7 @@ into negative is the most common way to fool yourself).
 - Fallback chain: Open-Meteo → **local MCP mock server** (explicitly labelled as mock) → a readable
   explanation.
 
-### 8. Multilingual translation (`src/chat/translation.py` + `languages.py`)
+### 7. Multilingual translation (`src/chat/translation.py` + `languages.py`)
 
 | Layer | Detail |
 |---|---|
@@ -306,7 +293,7 @@ into negative is the most common way to fool yourself).
 **$20 per million characters**, with the **first 500,000 characters per month free**. An individual
 translating 50 short sentences a day is roughly 30k characters a month — **inside the free tier**.
 
-### 9. Self-help handbook retrieval (`src/chat/knowledge.py`)
+### 8. Self-help handbook retrieval (`src/chat/knowledge.py`)
 
 25 **actionable** entries across 6 chapters (body regulation / riding out emotion / concrete
 troubles / relating to yourself / relationships / when to get real help). Writing discipline:
@@ -335,7 +322,6 @@ fail a test, not a documentation promise.**
 | The opening message stays short | ≤ 20 characters after stripping whitespace and punctuation |
 | Background is not pure white; body text meets WCAG AA | theme assertions: background neither pure white nor pure cold blue; body contrast ≥ 4.5:1 |
 | The wave gradient must be smooth | CSS assertions: >= 3 radial-gradient layers, no linear-gradient, light mode only |
-| The animal has **no demanding behaviour** | 17 banned words scanned over **rendered output**; state whitelist is idle/happy/sleeping |
 | Handbook hotlines match `safety.HOTLINES` exactly | consistency assertion — a wrong number is worse than none |
 | Tools **never raise** (timeouts, no network, bad args all return readable text) | malformed-input assertions |
 | Tests never pollute real data | page-level tests redirect history/feedback/profile directories to temp dirs |
@@ -422,7 +408,6 @@ Companion-agent test files, grouped by the regression they guard:
 | `tests/test_chat_profile.py` | **memory written without confirmation**; declined candidates entering the profile; unsanitised comments; counting rules broken |
 | `tests/test_chat_roles.py` | roles active on HIGH; authoritative posture at low confidence; missing role boundaries |
 | `tests/test_chat_knowledge.py` | handbook numbers diverging from `HOTLINES`; writing discipline (no "you should", no efficacy claims, no diagnostic terms); retrieval quality |
-| `tests/test_chat_character.py` | demanding or guilt-inducing design (17 banned words over rendered output); missing reduced-motion handling |
 | `tests/test_chat_weather.py` | offline fallback not labelled as mock; network failure not degrading gracefully; missing WMO codes |
 | `tests/test_chat_translation.py` | broken engine chain (Google failure not falling back); language detection regressions; silent truncation |
 | `tests/test_chat_style.py` | banned wording in copy; lengthening opening; background turning white / accent turning blue |
@@ -549,7 +534,6 @@ HeyTalk-Emotional-Companion/
 │  │  ├─ conversation.py       #   session and decisions (safety gate first)
 │  │  ├─ history.py            #   local conversation persistence
 │  │  ├─ feedback.py           #   feedback capture and counting rules
-│  │  ├─ character.py          #   corner animal (hand-written SVG)
 │  │  ├─ style.py              #   page look (minimal CSS)
 │  │  ├─ weather.py            #   global real-time weather (Open-Meteo)
 │  │  ├─ translation.py        #   multi-engine translation
@@ -568,7 +552,6 @@ HeyTalk-Emotional-Companion/
 │  └─ test.db                  # sample SQLite (legacy JS scripts)
 ├─ docs/
 │  ├─ PITFALLS.md              # ★ 21 post-mortems
-│  ├─ character_preview.html   # visual preview of the six characters
 │  └─ images/                  # measured screenshots
 ├─ tests/                      # 636 cases (mostly stdlib) + fixtures
 └─ scripts/                    # self-checks, import check, legacy JS
