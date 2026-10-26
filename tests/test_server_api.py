@@ -943,9 +943,15 @@ class TestLatencyRouting(ServerTestBase):
         self.api.con.make_model = lambda engine, **kw: (calls.append(engine)
                                                         or self._FastModel())
         self._empty_tools()
-        res = self.client.post("/api/chat", json={
-            "session_id": self._sid(), "message": "什么是情绪价值",
-            "engine": "deepseek-pro"})
+        # Routing only happens when the fast engine is available. Simulate that
+        # precondition instead of turning a missing local key into a false failure.
+        ready = {"deepseek": True, "deepseek-pro": True,
+                 "zhipu": True, "ollama": False}
+        with mock.patch.object(self.api.con, "available_engines",
+                               return_value=ready):
+            res = self.client.post("/api/chat", json={
+                "session_id": self._sid(), "message": "什么是情绪价值",
+                "engine": "deepseek-pro"})
         frames = _sse_frames(res.text)
         self.assertIn("deepseek", calls,
                       f"查询类问题应调用快速引擎：{calls}")

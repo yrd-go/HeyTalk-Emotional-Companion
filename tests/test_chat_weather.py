@@ -104,6 +104,27 @@ class TestCityNameFallback(unittest.TestCase):
         self.assertEqual(place["name"], "广州")
         self.assertIn("广州", tried)
 
+    def test_country_qualifier_is_parsed_and_filtered(self):
+        """「美国纽约」必须拆成城市 + 国家，而不是退化成「美国」。"""
+        seen: list[tuple[str, str | None, str | None]] = []
+
+        def fake(name, *, language="zh", country_code=None, admin_hint=None):
+            seen.append((name, country_code, admin_hint))
+            if name.casefold() == "new york city" and country_code == "US":
+                return {"name": "紐約市", "country": "美国",
+                        "country_code": "US", "admin": "纽约州",
+                        "latitude": 40.7, "longitude": -74.0,
+                        "population": 8804190, "feature_code": "PPL"}
+            return None
+
+        w.geocode_city = fake
+        place = w.geocode_city_smart("美国纽约")
+        self.assertIsNotNone(place)
+        self.assertEqual(place["country_code"], "US")
+        self.assertIn(("New York City", "US", None), seen)
+        self.assertNotIn(("美国", None, None), seen,
+                         "整串查询把国家中心点当成了城市")
+
     def test_network_error_is_not_reported_as_place_not_found(self):
         """★ 网络失败绝不能被说成"这个地方查不到"。
 
@@ -421,12 +442,30 @@ class TestLiveNetwork(unittest.TestCase):
     def test_global_cities_are_supported(self):
         """核心诉求：不管在美国、日本还是别的国家，都要能查。"""
         self._require_network()
-        for city in ("New York", "東京", "London"):
+        for city in ("New York City", "東京", "London", "Paris"):
             result = self._live_lookup(city)
             self.assertIsNotNone(result, f"{city}：连续多次都没能发起查询（网络问题）")
             self.assertTrue(result.ok, f"{city} 查询失败：{result.text}")
             self.assertEqual(result.source, w.SOURCE_LIVE,
                              f"{city} 没走真实数据源")
+
+    def test_country_qualified_namesake_is_resolved(self):
+        """用户按提示补充国家后，查询必须真的落到那个城市。"""
+        self._require_network()
+        result = self._live_lookup("美国纽约")
+        self.assertIsNotNone(result, "美国纽约：连续多次都没能发起查询（网络问题）")
+        self.assertTrue(result.ok, result.text)
+        self.assertEqual(result.country, "美国")
+        self.assertIn("紐約", result.city)
+
+    def test_new_york_alias_resolves_to_new_york_city(self):
+        """New York 的常用中文/英文写法要落到纽约市，而不是内布拉斯加约克。"""
+        self._require_network()
+        result = self._live_lookup("New York")
+        self.assertIsNotNone(result, "New York：连续多次都没能发起查询（网络问题）")
+        self.assertTrue(result.ok, result.text)
+        self.assertEqual(result.country, "美国")
+        self.assertIn("紐約", result.city)
 
     def test_unknown_place_is_explained(self):
         self._require_network()
