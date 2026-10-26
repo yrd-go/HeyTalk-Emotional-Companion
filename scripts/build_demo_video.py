@@ -640,7 +640,7 @@ def scene_evidence() -> Image.Image:
         (72, 330, 628, 200, "提示词 A/B", "61.7%", "38.3%", "完整提示词 vs 极简提示词 · 30 条情绪对话", True),
         (726, 330, 642, 200, "PRO VS FLASH", "49.6%", "50.4%", "没有稳定质量差距 · 置信区间跨 0", False),
         (72, 552, 628, 174, "RAG 检索", "94.4%", "hit@3", "18 题检索集 · 关键词检索降级仍可用", False),
-        (726, 552, 642, 174, "工程覆盖", "775", "tests", "安全、鉴权、记忆、工具与流式边界", False),
+        (726, 552, 642, 174, "工程验证", "753", "tests", "安全、鉴权、记忆、工具与流式边界", False),
     ]
     for x, y, w, h, label, big, small, note, featured in cards:
         fill = NAVY if featured else PAPER

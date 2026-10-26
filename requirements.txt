@@ -102,6 +102,12 @@ langchain[mcp]>=1.4.0
 # ---------------------------------------------------------------------------
 # Web 服务依赖（src/server/api.py：Starlette 后端）
 #
-# 说明：
+# 这些模块在导入期就会被加载，不能当作可选项：
+#   - starlette：HTTP / SSE / 静态资源
+#   - uvicorn：python src/server/api.py 的实际启动器
+#   - requests + beautifulsoup4：联网搜索（src/chat/web_search.py）
 # ---------------------------------------------------------------------------
 starlette
+uvicorn
+requests
+beautifulsoup4

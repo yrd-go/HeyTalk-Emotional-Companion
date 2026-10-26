@@ -105,7 +105,75 @@ _GLOBAL_CITY_ALIASES: dict[str, tuple[str, ...]] = {
     "东京": ("東京", "Tokyo"),
     "东京市": ("東京", "Tokyo"),
     "東京": ("Tokyo",),
+    "纽约": ("New York City", "紐約市"),
+    "纽约市": ("New York City", "紐約市"),
+    "紐約": ("New York City", "紐約市"),
+    "紐約市": ("New York City",),
+    "New York": ("New York City",),
+    "new york": ("New York City",),
 }
+
+# 用户在消歧时补充的国家/地区写法。仅在**城市名之外**出现时生效，
+# 不会把 "US" 这种短代码当作任意单词的前缀。
+_COUNTRY_ALIASES: dict[str, str] = {
+    "美国": "US", "us": "US", "usa": "US", "united states": "US",
+    "英国": "GB", "uk": "GB", "united kingdom": "GB",
+    "日本": "JP", "japan": "JP",
+    "法国": "FR", "france": "FR",
+    "德国": "DE", "germany": "DE",
+    "加拿大": "CA", "canada": "CA",
+    "澳大利亚": "AU", "australia": "AU",
+    "中国": "CN", "china": "CN",
+}
+
+
+def _country_code(value: str) -> str | None:
+    return _COUNTRY_ALIASES.get(str(value or "").strip().strip(".").casefold())
+
+
+def _split_place_qualifiers(name: str) -> tuple[str, str | None, str | None]:
+    """把「美国纽约 / New York, USA」拆成城市与可验证的地区限定。
+
+    为什么必须拆：Open-Meteo 的地名接口只匹配地名本身，不接受
+    "城市, 国家" 这种人类常用写法。直接整串查询时，某些前缀会被
+    退化成国家中心点（例如把「美国纽约」答成美国天气），这是错误答案，
+    比查不到更糟。
+    """
+    raw = str(name or "").strip()
+    if not raw:
+        return "", None, None
+
+    for sep in ("，", ","):
+        if sep in raw:
+            city, _, qualifier = raw.partition(sep)
+            qualifier = qualifier.strip()
+            code = _country_code(qualifier)
+            return city.strip(), code, (None if code else qualifier)
+
+    parts = raw.split()
+    if len(parts) > 1:
+        for index, part in enumerate(parts):
+            code = _country_code(part)
+            if code:
+                city = " ".join(parts[:index] + parts[index + 1:]).strip()
+                if city:
+                    return city, code, None
+
+    lowered = raw.casefold()
+    for alias, code in sorted(_COUNTRY_ALIASES.items(),
+                              key=lambda item: len(item[0]), reverse=True):
+        # 两字母代码只用于空格/逗号分隔，避免把 "Cairo" 误拆成 CA + iro。
+        if len(alias) < 3 and not any("\u4e00" <= ch <= "\u9fff" for ch in alias):
+            continue
+        if lowered.startswith(alias) and len(raw) > len(alias):
+            city = raw[len(alias):].strip(" ,，")
+            if len(city) >= 2:
+                return city, code, None
+        if lowered.endswith(alias) and len(raw) > len(alias):
+            city = raw[: -len(alias)].strip(" ,，")
+            if len(city) >= 2:
+                return city, code, None
+    return raw, None, None
 
 # 进程内缓存：用户这次查过「厦门市」，下次问「厦门」直接命中，省一次往返
 _GEOCODE_CACHE: dict[str, dict[str, Any]] = {}
@@ -253,7 +321,9 @@ def _get_json(url: str, params: dict[str, Any]) -> Any:
     return json.loads(raw)
 
 
-def geocode_city(name: str, *, language: str = "zh") -> dict[str, Any] | None:
+def geocode_city(name: str, *, language: str = "zh",
+                 country_code: str | None = None,
+                 admin_hint: str | None = None) -> dict[str, Any] | None:
     """把城市名解析成坐标；多个同名结果时返回最可信的那个。
 
     不再盲取 API 的第一条：Open-Meteo 对「东京」的中文查询只会返回
@@ -270,9 +340,21 @@ def geocode_city(name: str, *, language: str = "zh") -> dict[str, Any] | None:
     results = (payload or {}).get("results") or []
     places = []
     for item in results:
+        feature = str(item.get("feature_code") or "")
+        # 只接受居民点。否则查询「美国纽约」这类字符串退化成「美国」时，
+        # GeoNames 会把国家/山脉/机场当成“城市”，返回一个国家中心点。
+        if feature and not feature.startswith("PPL"):
+            continue
         place = _place_from_result(item, cleaned)
-        if place is not None:
-            places.append(place)
+        if place is None:
+            continue
+        if country_code and place.get("country_code") != country_code.upper():
+            continue
+        if admin_hint:
+            admin = str(place.get("admin") or "").casefold()
+            if admin_hint.casefold() not in admin:
+                continue
+        places.append(place)
     if not places:
         return None
     places.sort(key=_place_score, reverse=True)
@@ -288,6 +370,7 @@ def _place_from_result(item: Any, fallback_name: str) -> dict[str, Any] | None:
         return {
             "name": str(item.get("name") or fallback_name),
             "country": str(item.get("country") or ""),
+            "country_code": str(item.get("country_code") or ""),
             "admin": str(item.get("admin1") or ""),
             "latitude": float(item["latitude"]),
             "longitude": float(item["longitude"]),
@@ -360,10 +443,14 @@ def geocode_city_smart(name: str, *, language: str = "zh") -> dict[str, Any] | N
 
     返回与 `geocode_city` 相同的结构（外加它实际命中的写法 `matched_by`）。
     """
-    key = str(name or "").strip()
+    raw = str(name or "").strip()
+    if not raw:
+        return None
+    key, country_code, admin_hint = _split_place_qualifiers(raw)
     if not key:
         return None
-    cached = _GEOCODE_CACHE.get(key)
+    cache_key = f"{key}|{country_code or ''}|{admin_hint or ''}"
+    cached = _GEOCODE_CACHE.get(cache_key)
     if cached is not None:
         return dict(cached)
 
@@ -373,7 +460,12 @@ def geocode_city_smart(name: str, *, language: str = "zh") -> dict[str, Any] | N
     original: dict[str, Any] | None = None
     for candidate in _candidate_names(key):
         try:
-            place = geocode_city(candidate, language=language)
+            geo_kwargs: dict[str, Any] = {}
+            if country_code:
+                geo_kwargs["country_code"] = country_code
+            if admin_hint:
+                geo_kwargs["admin_hint"] = admin_hint
+            place = geocode_city(candidate, language=language, **geo_kwargs)
         except (urllib.error.URLError, socket.timeout, TimeoutError,
                 OSError, json.JSONDecodeError):
             # 网络/解析问题：不是"候选不对"，整条链都别指望了 —— 直接上报
@@ -408,10 +500,12 @@ def geocode_city_smart(name: str, *, language: str = "zh") -> dict[str, Any] | N
         best["alternatives"] = merged[:3]
     # 分数接近（都没有人口/行政级别证据）时不替用户猜：
     # 交给上层直接问"你要查哪一个"，而不是把某个同名小地点当成答案。
-    best["needs_disambiguation"] = (not _is_confident(best)
+    best["needs_disambiguation"] = (not country_code
+                                    and not admin_hint
+                                    and not _is_confident(best)
                                     and bool(best.get("alternatives")))
     best["matched_by"] = best_candidate
-    _GEOCODE_CACHE[key] = dict(best)
+    _GEOCODE_CACHE[cache_key] = dict(best)
     return best
 
 
