@@ -3,7 +3,7 @@
 Last audited: **2026-10-26**
 
 This file records what was actually verified, not what merely has source files. The public
-repository is a static portfolio.
+repository is a portfolio; the full interactive demo runs on the author's machine.
 
 ## Evidence labels
 
@@ -47,7 +47,7 @@ repository is a static portfolio.
 | Thinking stream and message actions | **D** | Present in demo material; no automated browser assertion |
 | Desktop and mobile layouts | **D** | Screenshots and video; no full viewport E2E suite |
 | Local keyword fallback when vector retrieval is unavailable | **T** | `tests/test_retrieval_fallback.py` |
-| Persistent public chat backend | **U** | Not offered by design; the portfolio is static |
+| Persistent public chat backend | **U** | Not offered by design; the portfolio is static and the interactive demo runs locally |
 | Model quality superiority | **U** | No blind evaluation against frontier models |
 
 ## Full-suite result

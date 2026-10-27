@@ -4,8 +4,9 @@
 
 > **Online portfolio:** <https://yrd-go.github.io/HeyTalk-Emotional-Companion/showcase/>
 >
-> GitHub Pages contains only the case study, screenshots and demo video. The static site does
-> not host a chat backend or any model credentials.
+> GitHub Pages contains only the case study, screenshots and demo video. For the interactive
+> walkthrough, the author runs the app on their laptop and opens `http://localhost:8600/app`.
+> The static site does not host a chat backend or any model credentials.
 
 HeyTalk is an emotional-companion prototype that treats safety constraints as part of the
 product contract. Crisis signals are checked by deterministic rules before model generation,
@@ -21,6 +22,7 @@ confirmation.
 | **Type** | Personal portfolio and small-scale prototype, not a commercial or clinical product |
 | **Stack** | React 19 + Vite frontend; Starlette + SSE backend; Python rule layer |
 | **Design priority** | Safety checks do not depend on the model; memory is explicit; fallbacks are visible |
+| **Interactive demo** | Run on the author's laptop during the interview at `http://localhost:8600/app` |
 | **Public case study** | [GitHub Pages](https://yrd-go.github.io/HeyTalk-Emotional-Companion/showcase/) |
 | **Verified on** | 2026-10-26 |
 
@@ -186,7 +188,7 @@ the conversation is enjoyable or that the product is clinically effective.
 3. Search result quality is bounded by the upstream search page and can be noisy or blocked.
 4. Real microphone capture and a full Whisper run were not re-verified in this audit.
 5. Model answer quality was not blind-judged against frontier models.
-6. No public chat: GitHub Pages is a static portfolio and does not host a chat backend.
+6. No persistent public chat: GitHub Pages is a static portfolio; the interactive demo is run locally by the author.
 7. RAG is not the main chat path; when vector retrieval is unavailable, the system falls back to local keyword retrieval.
 
 ---
