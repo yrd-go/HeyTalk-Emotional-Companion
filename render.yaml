@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: heytalk-demo
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./Dockerfile.demo
+    healthCheckPath: /api/bootstrap
+    envVars:
+      - key: HEYTALK_DEMO
+        value: "1"
+      - key: HEYTALK_DATA_DIR
+        value: /data
+      - key: HEYTALK_HOST
+        value: 0.0.0.0
+    disk:
+      name: heytalk-demo-data
+      mountPath: /data
+      sizeGB: 1

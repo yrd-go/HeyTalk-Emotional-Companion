@@ -26,6 +26,7 @@ from __future__ import annotations
 import html
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -46,6 +47,7 @@ __all__ = [
     "Session",
     "new_session",
     "EngineUnavailable",
+    "demo_mode",
     "available_engines",
     "make_model",
     "assemble_chat_messages",
@@ -352,7 +354,127 @@ class EngineUnavailable(RuntimeError):
     """引擎不可用（缺依赖 / 缺 Key）。调用方应转成友好提示，而不是抛栈。"""
 
 
+def demo_mode() -> bool:
+    """是否处于零 Key 演示模式。
+
+    演示模式不读取任何供应商 Key，也不会发起模型网络请求。它存在的目的
+    是让招聘方/面试官在**没有账号和配额**的机器上看到完整交互，而不是对着
+    “未配置 DEEPSEEK_API_KEY”的报错猜产品长什么样。
+    """
+    return os.environ.get("HEYTALK_DEMO", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+class _DemoChunk:
+    """兼容 LangChain 流式 chunk 的最小对象（只需要 content）。"""
+
+    def __init__(self, content: str) -> None:
+        self.content = content
+
+
+class DemoChatModel:
+    """演示引擎：确定性、可离线、绝不发出网络请求。
+
+    它不试图伪装成真实模型。首轮会明确标注“本地规则生成”，后续回复只用于
+    展示安全分流、SSE 流式、历史落盘和记忆确认这些工程路径。
+    """
+
+    def __init__(self, *, temperature: float = 0.7) -> None:
+        self.temperature = temperature
+
+    def bind_tools(self, tools: Sequence[Any] | None = None) -> "DemoChatModel":
+        # 演示模式不执行真实工具，但仍返回可绑定的对象，让工具阶段正常降级。
+        return self
+
+    def invoke(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
+        return {"content": "", "tool_calls": []}
+
+    def stream(self, messages: list[dict[str, Any]]):
+        text = _demo_reply(messages)
+        for start in range(0, len(text), 12):
+            time.sleep(0.012)
+            yield _DemoChunk(text[start:start + 12])
+
+
+def _last_user_text(messages: list[dict[str, Any]]) -> str:
+    for item in reversed(messages or []):
+        if str(item.get("role") or "") != "user":
+            continue
+        content = item.get("content")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return "".join(
+                str(part.get("text") or "") if isinstance(part, Mapping) else str(part)
+                for part in content
+            )
+    return ""
+
+
+def _demo_reply(messages: list[dict[str, Any]]) -> str:
+    """给演示模式一条稳定、可解释的回复。
+
+    这里不调用分类模型，只用少量关键词分支。它的价值在于“每次结果一致”，
+    方便截图、回归测试和面试现场演示；不承担真实对话质量。
+    """
+    text = _last_user_text(messages).strip()
+    lowered = text.lower()
+    user_turns = sum(1 for item in messages if item.get("role") == "user")
+    prefix = ""
+    if user_turns <= 1:
+        prefix = ("先说明一下：当前是零 Key 演示模式，"
+                  "下面这条回复由本地规则生成，没有调用外部模型。\n\n")
+
+    if any(word in lowered for word in ("累", "难受", "烦", "焦虑", "压力", "撑不住")):
+        body = (
+            "听起来你已经绷了挺久，连“累”这个字说出来都像是挤出来的。\n\n"
+            "先不急着把问题解决掉。此刻更想知道的是：这份累更像是一直没睡好，"
+            "还是心里有件事一直悬着、放不下来？你可以只说一点，不想展开也没关系。"
+        )
+    elif any(word in lowered for word in ("失眠", "睡不着", "睡不好")):
+        body = (
+            "睡不着的时候，越命令自己“必须睡”，大脑往往越清醒。\n\n"
+            "今晚可以先做一件很小的事：把屏幕放下十分钟，允许自己只是躺着休息，"
+            "不把“睡着”当成任务。如果这种状态已经持续好几周，白天也明显受影响，"
+            "值得找医生或心理咨询师认真看一下，而不是继续硬扛。"
+        )
+    elif any(word in lowered for word in ("考研", "考试", "面试", "工作", "项目")):
+        body = (
+            "这件事听起来不只是“忙”，而是它占住了你很多注意力。\n\n"
+            "我们可以先把它拆成两段：哪一部分是现在就能推进的，哪一部分其实要等结果、"
+            "再怎么想也不会更快。你愿意先说最卡住你的那一段吗？"
+        )
+    elif any(word in lowered for word in ("你好", "在吗", "介绍一下", "你是谁")):
+        body = (
+            "我在。这里是 HeyTalk 的演示：安全闸先于模型、记忆需确认、"
+            "回复经 SSE 流式返回。\n\n"
+            "你可以试试说“今天有点累”，或者输入一句带风险词的测试文本，看看安全分流。"
+        )
+    elif any(word in lowered for word in ("谢谢", "晚安", "再见")):
+        body = "好，我记下这一刻了。今天不用表现得很好，能把自己带到这儿已经够不容易。"
+    else:
+        body = (
+            "我听见了。你刚才说的这件事，好像不只是表面上的那一层，"
+            "里面还压着一点说不清的感受。\n\n"
+            "如果愿意，可以再告诉我：这件事让你最难受的，是发生的时候，"
+            "还是之后一个人回想的时候？"
+        )
+    return prefix + body
+
+
 ENGINE_TABLE: dict[str, dict[str, str]] = {
+    "demo": {
+        "label": "演示模式（零 Key · 不调用外部模型）",
+        # 只在 HEYTALK_DEMO=1 时可用；固定为 fallback，避免改变真实模式的
+        # “只有 DeepSeek 是主用”这一既有产品分层。
+        "tier": "fallback",
+        "base_url_env": "",
+        "base_url_default": "",
+        "model_env": "",
+        "model_default": "heytalk-demo",
+        "key_env": "",
+    },
     # ---------------------------------------------------------------
     # tier 字段决定这个引擎**是否出现在用户的选择器里**：
     #   "primary"  —— 出现在选择器里，用户可自选
@@ -421,6 +543,9 @@ def available_engines() -> dict[str, bool]:
     注意：返回 True 只代表"有 Key/有依赖"，不代表网络一定通——
     真正的失败在调用时暴露，由上层转成友好提示。
     """
+    if demo_mode():
+        return {"demo": True}
+
     result: dict[str, bool] = {}
     try:
         import langchain_openai  # noqa: F401
@@ -480,6 +605,8 @@ def mode_engine(thinking: bool) -> str:
     这里只检查 Key/依赖是否配好，不发起网络请求；真正连接失败仍由
     `make_model` 之后的调用路径处理。
     """
+    if demo_mode():
+        return "demo"
     ready = available_engines()
     preferred = THINKING_ENGINE if thinking else DEFAULT_CHAT_ENGINE
     if ready.get(preferred):
@@ -511,6 +638,8 @@ def primary_engines() -> list[str]:
     全部不可用时返回空列表 —— 调用方应当退到 `fallback_engines()`，
     而不是给用户一个空下拉框。
     """
+    if demo_mode():
+        return ["demo"]
     ready = available_engines()
     return [name for name, cfg in ENGINE_TABLE.items()
             if cfg.get("tier") == "primary" and ready.get(name)]
@@ -546,6 +675,8 @@ def selectable_engines() -> tuple[list[str], bool]:
       `degraded` 的语义因此变成"**一个主用都没有**"（界面要如实提示），
       而不是"用户没得选"。
     """
+    if demo_mode():
+        return ["demo"], False
     ready = available_engines()
     names = [name for name, cfg in ENGINE_TABLE.items() if ready.get(name)]
     has_primary = any(ENGINE_TABLE[n].get("tier") == "primary" for n in names)
@@ -563,6 +694,10 @@ def make_model(engine: str = DEFAULT_ENGINE, *, temperature: float = 0.7,
     失败一律抛 EngineUnavailable（带可操作的中文提示），
     由 chat_app.py 转成页面提示，绝不让 traceback 打到用户脸上。
     """
+    if demo_mode():
+        # 演示模式必须隔离成本与隐私：即使环境里恰好有真实 Key，也不允许外发。
+        return DemoChatModel(temperature=temperature)
+
     config = ENGINE_TABLE.get(engine)
     if config is None:
         raise EngineUnavailable(f"未知引擎：{engine}（可选：{'、'.join(ENGINE_TABLE)}）")

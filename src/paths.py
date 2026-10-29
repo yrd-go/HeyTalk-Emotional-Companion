@@ -69,7 +69,15 @@ def find_project_root(start: Path | None = None) -> Path:
 PROJECT_ROOT: Path = find_project_root()
 SRC_DIR: Path = PROJECT_ROOT / "src"
 ASSETS_DIR: Path = PROJECT_ROOT / "assets"
-DATA_DIR: Path = PROJECT_ROOT / "data"
+BUNDLED_DATA_DIR: Path = PROJECT_ROOT / "data"
+
+# 可变运行数据目录。演示模式把它指向 `.demo-data/`，避免把演示对话、
+# 记忆或登录令牌写进真实用户目录；只读语料仍从 BUNDLED_DATA_DIR 读取。
+_DATA_DIR_ENV = os.environ.get("HEYTALK_DATA_DIR", "").strip()
+DATA_DIR: Path = (
+    Path(_DATA_DIR_ENV).expanduser().resolve()
+    if _DATA_DIR_ENV else BUNDLED_DATA_DIR
+)
 LOGS_DIR: Path = PROJECT_ROOT / "logs"
 SCRIPTS_DIR: Path = PROJECT_ROOT / "scripts"
 
@@ -77,7 +85,7 @@ SCRIPTS_DIR: Path = PROJECT_ROOT / "scripts"
 # 情绪自助手册：项目现在**唯一**的知识库。
 # 它既是陪伴 Agent 的检索语料（src/chat/knowledge.py），
 # 也是 RAG 演示（src/rag_demo.py）的语料 —— 一份数据两用，不再有第二份。
-EMOTIONAL_HANDBOOK: Path = DATA_DIR / "emotional_handbook.txt"
+EMOTIONAL_HANDBOOK: Path = BUNDLED_DATA_DIR / "emotional_handbook.txt"
 # 兼容别名：老代码/老文档里的 KB_FILE 现在指向同一份情绪手册。
 KB_FILE: Path = EMOTIONAL_HANDBOOK
 CHROMA_DIR: Path = DATA_DIR / "chroma_db"

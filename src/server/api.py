@@ -2355,7 +2355,7 @@ def main() -> int:
     """命令行直接启动（不需要记 uvicorn 的参数）。"""
     import uvicorn
 
-    port = int(os.environ.get("HEYTALK_PORT", "") or 8600)
+    port = int(os.environ.get("HEYTALK_PORT", "") or os.environ.get("PORT", "") or 8600)
     # ★ 监听地址做成可配置，默认只给本机（最安全）。
     #   要让朋友连进来，把它设成 0.0.0.0 —— 但那会把登录页暴露给**整个
     #   局域网**。更稳的做法是用隧道（只暴露一个地址，不动局域网），
